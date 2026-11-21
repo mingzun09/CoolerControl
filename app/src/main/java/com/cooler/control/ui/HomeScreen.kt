@@ -285,7 +285,7 @@ private fun ModeSliderCard(
                 valueRange = 0f..order.lastIndex.toFloat(),
                 keyPoints = order.indices.map { it.toFloat() },
                 showKeyPoints = true,
-                magnetThreshold = 0.12f,
+                magnetThreshold = 0.2f,
                 enabled = connected,
                 modifier = Modifier.fillMaxWidth(),
             )
