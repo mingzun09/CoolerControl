@@ -20,7 +20,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,6 +59,13 @@ fun HomeScreen(
     onOpenMore: () -> Unit,
 ) {
     val connected = state.connection == ConnectionState.CONNECTED
+    var previewMode by remember { mutableStateOf<CoolerMode?>(null) }
+    var glowTick by remember { mutableIntStateOf(0) }
+    var lastConnected by remember { mutableStateOf(false) }
+    LaunchedEffect(connected) {
+        if (connected && !lastConnected) glowTick++
+        lastConnected = connected
+    }
 
     Column(
         modifier = modifier
@@ -63,9 +73,13 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp),
     ) {
-        StaggeredItem(0) { DeviceCard(state, onScan, onStopScan, onConnect, onDisconnect) }
-        StaggeredItem(1) { HeroCard(state, connected) }
-        StaggeredItem(2) { ModeSliderCard(state, connected, onMode) }
+        StaggeredItem(0) {
+            DeviceCard(state, glowTick, onScan, onStopScan, onConnect, onDisconnect)
+        }
+        StaggeredItem(1) { HeroCard(state, connected, previewMode ?: state.mode) }
+        StaggeredItem(2) {
+            ModeSliderCard(state, connected, onMode) { previewMode = it }
+        }
 
         StaggeredItem(3) { SectionCard(title = "更多设置", enabled = connected) {
             SettingRow(
@@ -99,6 +113,7 @@ fun HomeScreen(
 @Composable
 private fun DeviceCard(
     state: CoolerState,
+    glowTick: Int,
     onScan: () -> Unit,
     onStopScan: () -> Unit,
     onConnect: (String) -> Unit,
@@ -106,7 +121,7 @@ private fun DeviceCard(
 ) {
     val connected = state.connection == ConnectionState.CONNECTED
     val scanning = state.connection == ConnectionState.SCANNING
-    SectionCard(title = "设备") {
+    SectionCard(title = "设备", glowTrigger = glowTick) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -156,7 +171,7 @@ private fun DeviceCard(
 
 /** 模型图 + 温度/温感，对应 HyperOS 的设备页上半部分 */
 @Composable
-private fun HeroCard(state: CoolerState, connected: Boolean) {
+private fun HeroCard(state: CoolerState, connected: Boolean, displayMode: CoolerMode?) {
     val temp = if (connected) state.temperature else null
     SectionCard {
         Column(
@@ -164,7 +179,7 @@ private fun HeroCard(state: CoolerState, connected: Boolean) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             CoolerIllustration(
-                mode = state.mode,
+                mode = displayMode,
                 connected = connected,
                 lightMode = state.lightMode ?: com.cooler.control.protocol.LightMode.ALWAYS_ON,
                 lightColor = state.lightColor ?: com.cooler.control.protocol.LightColor.SINGLE,
@@ -183,19 +198,19 @@ private fun HeroCard(state: CoolerState, connected: Boolean) {
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
                     Spacer(Modifier.height(6.dp))
-                    AnimatedContent(
-                        targetState = temp,
-                        transitionSpec = {
-                            (slideInVertically(tween(260)) { it / 2 } + fadeIn(tween(200))) togetherWith
-                                (slideOutVertically(tween(260)) { -it / 2 } + fadeOut(tween(160)))
-                        },
-                        label = "temp",
-                    ) { value ->
-                        Text(
-                            text = if (value != null) "${value}℃" else "--",
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OdometerText(
+                            text = if (temp != null) temp.toString() else "-",
                             fontSize = 24.sp,
+                            color = MiuixTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            text = "℃",
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 2.dp, bottom = 2.dp),
                         )
                     }
                 }
@@ -221,7 +236,12 @@ private fun HeroCard(state: CoolerState, connected: Boolean) {
 
 /** 散热模式：四档滑块 */
 @Composable
-private fun ModeSliderCard(state: CoolerState, connected: Boolean, onMode: (CoolerMode) -> Unit) {
+private fun ModeSliderCard(
+    state: CoolerState,
+    connected: Boolean,
+    onMode: (CoolerMode) -> Unit,
+    onPreviewMode: (CoolerMode?) -> Unit,
+) {
     val order = CoolerMode.displayOrder
     val currentIndex = order.indexOfFirst { it == state.mode }.coerceAtLeast(0)
     var slider by remember(state.mode, connected) { mutableFloatStateOf(currentIndex.toFloat()) }
@@ -252,11 +272,15 @@ private fun ModeSliderCard(state: CoolerState, connected: Boolean, onMode: (Cool
             }
             Slider(
                 value = slider,
-                onValueChange = { slider = it },
+                onValueChange = {
+                    slider = it
+                    onPreviewMode(order[it.roundToInt().coerceIn(0, order.lastIndex)])
+                },
                 onValueChangeFinished = {
                     val idx = slider.roundToInt().coerceIn(0, order.lastIndex)
                     slider = idx.toFloat()
                     onMode(order[idx])
+                    onPreviewMode(null)
                 },
                 valueRange = 0f..order.lastIndex.toFloat(),
                 keyPoints = order.indices.map { it.toFloat() },

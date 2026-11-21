@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,8 @@ fun SectionCard(
     title: String? = null,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    glowTrigger: Int = 0,
+    glowColor: Color = Color(0xFF3D7EFF),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -58,11 +62,20 @@ fun SectionCard(
                 modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 6.dp),
             )
         }
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            insideMargin = PaddingValues(0.dp),
-        ) {
-            content()
+        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                insideMargin = PaddingValues(0.dp),
+            ) {
+                content()
+            }
+            if (glowTrigger > 0) {
+                GlowBorder(
+                    trigger = glowTrigger,
+                    color = glowColor,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
         }
     }
 }

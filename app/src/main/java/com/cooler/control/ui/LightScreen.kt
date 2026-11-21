@@ -1,5 +1,8 @@
 package com.cooler.control.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -8,12 +11,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.unit.dp
 import com.cooler.control.ble.CoolerState
 import com.cooler.control.protocol.LightColor
@@ -27,6 +34,14 @@ fun LightScreen(
     val mode = state.lightMode ?: LightMode.ALWAYS_ON
     val color = state.lightColor ?: LightColor.SINGLE
 
+    // 切换灯效时预览做一次弹性放大
+    val pulse = remember { Animatable(1f) }
+    LaunchedEffect(mode, color) {
+        pulse.snapTo(1f)
+        pulse.animateTo(1.06f, tween(120))
+        pulse.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 500f))
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -34,14 +49,23 @@ fun LightScreen(
             .padding(bottom = 24.dp),
     ) {
         SectionCard(title = "效果预览") {
-            LightPreview(
-                mode = mode,
-                color = color,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(96.dp)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            )
+                    .graphicsLayer {
+                        scaleX = pulse.value
+                        scaleY = pulse.value
+                    },
+            ) {
+                LightPreview(
+                    mode = mode,
+                    color = color,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(96.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+            }
         }
         SectionCard(title = "灯效模式") {
             LightMode.displayOrder.forEach { m ->
