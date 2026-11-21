@@ -22,6 +22,7 @@
 - **四档散热模式**：自动 / 静音 / 高效 / 冰封，滑块切换，风扇转速与模式联动
 - **灯效**：常亮 / 呼吸 / 流光 / 彩虹 / 关闭 × 单色 / 三色 / 彩色，带动画预览
 - **定时关闭**：30 分钟 / 1 小时 / 2 小时，倒计时实时走动
+- **ColorOS 流体云**：连接后状态栏胶囊显示温度，展开卡片可直接「切换模式」（基于 Android 16 实时更新 API）
 - 深浅色跟随系统、断线自动重连、未连接时功能置灰
 
 ## 设备示意图
@@ -93,6 +94,15 @@ app/src/main/java/com/cooler/control/
 ```bash
 ./gradlew :app:testDebugUnitTest
 ```
+
+## 流体云 / 实时更新说明
+
+ColorOS 把 Android 16 的「提升型常驻通知（Live Update）」渲染成流体云。App 已经按规范实现：
+
+- 通知带 `setRequestPromotedOngoing(true)` 与 `setShortCriticalText(温度)`
+- 系统开关由用户控制，默认关闭。开启方式：
+  - App 内「设备信息 → 权限 → 流体云 / 实时更新」跳转系统设置，或
+  - `adb shell cmd appops set com.cooler.control POST_PROMOTED_NOTIFICATIONS allow`
 
 ## 已知问题 / 待办
 

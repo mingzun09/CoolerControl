@@ -7,7 +7,9 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.cooler.control.CoolerApp
 import com.cooler.control.MainActivity
@@ -22,7 +24,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
- * 前台服务：让连接在后台存活，并在通知栏显示实时温度。
+ * 前台服务：保持连接，并把状态做成"提升型常驻通知"。
+ * ColorOS 会把这类通知渲染成流体云胶囊（capsule）。
  */
 class CoolerService : Service() {
 
@@ -63,6 +66,8 @@ class CoolerService : Service() {
     private fun build(state: CoolerState?): Notification {
         val connected = state?.connection == ConnectionState.CONNECTED
         val temp = state?.temperature
+        val modeLabel = state?.mode?.label
+
         val title = when {
             !connected -> "背夹未连接"
             temp != null -> "背夹 ${temp}℃"
@@ -70,36 +75,65 @@ class CoolerService : Service() {
         }
         val text = when {
             !connected -> "点击打开，搜索并连接散热背夹"
-            temp != null -> listOfNotNull(state?.mode?.label, state?.deviceName).joinToString(" · ")
-            else -> state?.deviceName ?: "等待设备上报"
+            else -> listOfNotNull(modeLabel, state?.deviceName).joinToString(" · ")
         }
-        val intent = Intent(this, MainActivity::class.java).apply {
+
+        val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        val pi = PendingIntent.getActivity(
-            this, 0, intent,
+        val contentPi = PendingIntent.getActivity(
+            this, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+
+        val cycleIntent = Intent(this, CoolerActionReceiver::class.java).apply {
+            action = CoolerActionReceiver.ACTION_CYCLE_MODE
+        }
+        val cyclePi = PendingIntent.getBroadcast(
+            this, 1, cycleIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(text)
-            .setContentIntent(pi)
+            .setContentIntent(contentPi)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+            .addAction(0, "切换模式", cyclePi)
+            .setShortcutId(SHORTCUT_ID)
+
+        // Android 16：提升为"实时更新"，ColorOS 会渲染成流体云胶囊
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            builder.setShortCriticalText(
+                when {
+                    !connected -> "未连接"
+                    temp != null -> "${temp}℃"
+                    else -> "--"
+                },
+            )
+            builder.setRequestPromotedOngoing(connected)
+        }
+
+        return builder.build()
     }
 
     private fun notify(n: Notification) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            Log.d(TAG, "canPostPromoted=${nm.canPostPromotedNotifications()}")
+        }
         nm.notify(NOTIFICATION_ID, n)
     }
 
     companion object {
+        private const val TAG = "CoolerService"
         private const val CHANNEL_ID = "cooler_status"
         private const val NOTIFICATION_ID = 1001
+        private const val SHORTCUT_ID = "cooler_live"
 
         fun start(context: Context) {
             val intent = Intent(context, CoolerService::class.java)
