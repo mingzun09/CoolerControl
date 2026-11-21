@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,26 +25,29 @@ import androidx.compose.ui.platform.LocalContext
 import com.cooler.control.protocol.CoolerMode
 import com.cooler.control.protocol.LightColor
 import com.cooler.control.protocol.LightMode
-import kotlin.math.sqrt
 
-/** 底图原始尺寸（app/src/main/assets/cooler_body.webp） */
+/** 底图原始比例（app/src/main/assets/cooler_body.webp） */
 private const val IMAGE_RATIO = 897f / 676f
 
-// 两个开口（挖洞位置）与整枚风扇的中心/半径，均为相对图片宽度的比例
+// 两处镂空的位置（用于把机身"挖穿"），以及整枚风扇的半径比例
 private const val HOLE1_X = 0.478f
 private const val HOLE1_Y = 0.352f
 private const val HOLE1_R = 0.172f
 private const val HOLE2_X = 0.478f
 private const val HOLE2_Y = 0.678f
 private const val HOLE2_R = 0.178f
-private const val FAN_CX = 0.478f
-private const val FAN_CY = 0.510f
-private const val FAN_R = 0.290f
+
+/** 风扇半径：按整个背夹高度取比例 */
+private const val FAN_RADIUS_RATIO = 0.40f
 
 /**
- * 背夹外观：
- * 风扇画在**图片后面**，底图对应位置被"挖洞"，外壳边缘自然压住风扇，
- * 看起来就是嵌在机身内部的，而不是浮在图片上的一层贴纸。
+ * 三层 Z 轴叠加（画家算法），全部共享同一个全局中心：
+ *
+ *   1. 底壳 + 黑色圆形内腔
+ *   2. 灯盘 + 扇叶（一枚，圆心 = 全局中心，半径 = 高度 × 0.40）
+ *   3. 抠空的机身（外壳 + COOLER FOR GAMING 横梁）压在最上面，自然遮住风扇中间一条
+ *
+ * 没有上下分区，也没有第二个风扇。
  */
 @Composable
 fun CoolerIllustration(
@@ -62,7 +64,6 @@ fun CoolerIllustration(
             context.assets.open("cooler_body.webp").use { BitmapFactory.decodeStream(it) }
         }.getOrNull()
     }
-    // 在两个开口处挖洞，得到"外壳遮罩"
     val holed = remember(origin) {
         origin?.let {
             punchHoles(
@@ -74,59 +75,28 @@ fun CoolerIllustration(
             )
         }
     }
-    val angle by rememberFanAngle(mode, connected)
-    val phase by rememberLightPhase()
+    val motion = rememberFanMotion(mode, connected)
+    val (lightPhase, lightAlpha) = rememberLightState(lightMode)
 
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Box(modifier = Modifier.fillMaxWidth(0.92f).aspectRatio(IMAGE_RATIO)) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth(0.92f).aspectRatio(IMAGE_RATIO),
+            contentAlignment = Alignment.Center,
+        ) {
             if (holed != null) {
-                // 每个开口内一枚风扇 + 灯环（各自在自己的洞里）
+                // 第 1、2 层：内腔 + 灯盘 + 扇叶（单一全局中心）
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val holes = listOf(
-                        Triple(HOLE1_X, HOLE1_Y, HOLE1_R),
-                        Triple(HOLE2_X, HOLE2_Y, HOLE2_R),
-                    )
-                    holes.forEachIndexed { i, h ->
-                        val c = Offset(size.width * h.first, size.height * h.second)
-                        val rr = size.width * h.third
-                        drawLedWheel(
-                            center = c,
-                            radius = rr * 0.98f,
-                            lightMode = lightMode,
-                            lightColor = lightColor,
-                            phase = phase,
-                        )
-                        drawFanBlades(
-                            center = c,
-                            radius = rr * 0.98f,
-                            angleDeg = if (i == 0) angle else angle * 0.85f,
-                        )
-                    }
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.height * FAN_RADIUS_RATIO
+                    drawCircle(Color(0xFF090A0D), radius = radius, center = center)
+                    drawLedWheel(center, radius, lightMode, lightColor, lightPhase, lightAlpha)
+                    drawFanBlades(center, radius, motion)
+                    drawCavityShadow(center, radius)
                 }
-                // 3) 两个开口内缘的接触阴影（洞外会被机身盖住）
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    listOf(
-                        Triple(HOLE1_X, HOLE1_Y, HOLE1_R),
-                        Triple(HOLE2_X, HOLE2_Y, HOLE2_R),
-                    ).forEach { h ->
-                        val c = Offset(size.width * h.first, size.height * h.second)
-                        val r = size.width * h.third
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colorStops = arrayOf(
-                                    0.72f to Color.Transparent,
-                                    0.92f to Color.Black.copy(alpha = 0.45f),
-                                    1.00f to Color.Transparent,
-                                ),
-                                center = c,
-                                radius = r * 1.05f,
-                            ),
-                            radius = r * 1.05f,
-                            center = c,
-                        )
-                    }
-                }
-                // 最后画挖过洞的机身：外壳、中缝、黑网都会盖住风扇边缘
+                // 第 3 层：机身（两处镂空），横梁与外壳压住风扇
                 Image(
                     bitmap = holed.asImageBitmap(),
                     contentDescription = "小米冰封散热背夹",
@@ -134,20 +104,14 @@ fun CoolerIllustration(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Canvas(modifier = Modifier.fillMaxSize()) { drawVectorFallback(darkTheme) }
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawFanBlades(
-                        center = Offset(size.width * 0.5f, size.height * 0.5f),
-                        radius = size.width * 0.26f,
-                        angleDeg = angle,
-                    )
-                    drawLedWheel(
-                        center = Offset(size.width * 0.5f, size.height * 0.5f),
-                        radius = size.width * 0.22f,
-                        lightMode = lightMode,
-                        lightColor = lightColor,
-                        phase = phase,
-                    )
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.height * FAN_RADIUS_RATIO
+                    drawVectorFallback(darkTheme)
+                    drawCircle(Color(0xFF090A0D), radius = radius, center = center)
+                    drawLedWheel(center, radius, lightMode, lightColor, lightPhase, lightAlpha)
+                    drawFanBlades(center, radius, motion)
+                    drawCavityShadow(center, radius)
                 }
             }
         }
@@ -155,8 +119,8 @@ fun CoolerIllustration(
 }
 
 /**
- * 从风扇中心泛洪，把连通的暗色区域（=开口）抠成透明，形成"外壳遮罩"。
- * 这样风扇只会在开口内露出，外壳与中缝会自然压住风扇。
+ * 把机身图片上两处风扇开口挖成透明（泛洪，只吃掉连通的暗色区域，
+ * 白色外壳和中间横梁保持不透明，用于遮挡风扇）。
  */
 private fun punchHoles(src: Bitmap, holes: List<Triple<Float, Float, Float>>): Bitmap {
     val out = src.copy(Bitmap.Config.ARGB_8888, true)
@@ -167,12 +131,12 @@ private fun punchHoles(src: Bitmap, holes: List<Triple<Float, Float, Float>>): B
 private fun punchOne(out: Bitmap, cxF: Float, cyF: Float, rF: Float) {
     val w = out.width
     val h = out.height
+    val src = out
     val cx = (w * cxF).toInt()
     val cy = (h * cyF).toInt()
     val maxR = w * rF
     val maxR2 = maxR * maxR
 
-    val src = out
     val visited = BooleanArray(w * h)
     val stack = IntArray(w * h)
     var top = 0
@@ -190,7 +154,7 @@ private fun punchOne(out: Bitmap, cxF: Float, cyF: Float, rF: Float) {
 
         val p = src.getPixel(x, y)
         val lum = (p shr 16 and 0xFF) * 299 + (p shr 8 and 0xFF) * 587 + (p and 0xFF) * 114
-        if (lum / 1000f > 95f) continue   // 亮色（外壳/中缝）不挖
+        if (lum / 1000f > 95f) continue
 
         out.setPixel(x, y, 0)
 
@@ -231,12 +195,5 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVectorFallback(
         path = shell,
         color = if (darkTheme) Color(0x33FFFFFF) else Color(0x22000000),
         style = Stroke(width = 1.5f),
-    )
-    val stripW = shellW * 0.10f
-    drawRoundRect(
-        brush = Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFCBD0D8))),
-        topLeft = Offset(left + shellW / 2f - stripW / 2f, top + shellH * 0.06f),
-        size = Size(stripW, shellH * 0.88f),
-        cornerRadius = CornerRadius(stripW / 2f, stripW / 2f),
     )
 }
