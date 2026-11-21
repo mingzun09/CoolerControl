@@ -29,13 +29,10 @@ import com.cooler.control.protocol.LightMode
 /** 底图原始尺寸（app/src/main/assets/cooler_body.webp） */
 private const val IMAGE_RATIO = 897f / 676f
 
-// 两个风扇在底图中的相对位置与半径（按图片标定）
-private const val FAN1_X = 0.468f
-private const val FAN1_Y = 0.336f
-private const val FAN1_R = 0.165f
-private const val FAN2_X = 0.468f
-private const val FAN2_Y = 0.668f
-private const val FAN2_R = 0.140f
+// 主风扇在底图中的相对位置与开口半径（按图片标定）
+private const val FAN_X = 0.478f
+private const val FAN_Y = 0.352f
+private const val FAN_R = 0.160f
 
 /**
  * 背夹外观：优先使用 assets/cooler_body.webp 实拍底图，
@@ -69,20 +66,10 @@ fun CoolerIllustration(
                     modifier = Modifier.fillMaxSize(),
                 )
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val r1 = size.width * FAN1_R
-                    val r2 = size.width * FAN2_R
                     drawFanMotor(
-                        center = Offset(size.width * FAN1_X, size.height * FAN1_Y),
-                        radius = r1,
+                        center = Offset(size.width * FAN_X, size.height * FAN_Y),
+                        openingRadius = size.width * FAN_R,
                         angleDeg = angle,
-                        lightMode = lightMode,
-                        lightColor = lightColor,
-                        phase = phase,
-                    )
-                    drawFanMotor(
-                        center = Offset(size.width * FAN2_X, size.height * FAN2_Y),
-                        radius = r2,
-                        angleDeg = -angle,
                         lightMode = lightMode,
                         lightColor = lightColor,
                         phase = phase,
@@ -94,17 +81,9 @@ fun CoolerIllustration(
                 }
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawFanMotor(
-                        center = Offset(size.width * 0.30f, size.height * 0.5f),
-                        radius = size.width * 0.19f,
+                        center = Offset(size.width * 0.5f, size.height * 0.5f),
+                        openingRadius = size.width * 0.22f,
                         angleDeg = angle,
-                        lightMode = lightMode,
-                        lightColor = lightColor,
-                        phase = phase,
-                    )
-                    drawFanMotor(
-                        center = Offset(size.width * 0.70f, size.height * 0.5f),
-                        radius = size.width * 0.19f,
-                        angleDeg = -angle,
                         lightMode = lightMode,
                         lightColor = lightColor,
                         phase = phase,
