@@ -31,10 +31,16 @@ import kotlin.math.sqrt
 /** 底图原始尺寸（app/src/main/assets/cooler_body.webp） */
 private const val IMAGE_RATIO = 897f / 676f
 
-// 主风扇开口在底图中的相对位置与半径（按图片标定）
-private const val FAN_X = 0.478f
-private const val FAN_Y = 0.352f
-private const val FAN_R = 0.166f
+// 两个开口（挖洞位置）与整枚风扇的中心/半径，均为相对图片宽度的比例
+private const val HOLE1_X = 0.478f
+private const val HOLE1_Y = 0.352f
+private const val HOLE1_R = 0.172f
+private const val HOLE2_X = 0.478f
+private const val HOLE2_Y = 0.678f
+private const val HOLE2_R = 0.178f
+private const val FAN_CX = 0.478f
+private const val FAN_CY = 0.510f
+private const val FAN_R = 0.290f
 
 /**
  * 背夹外观：
@@ -56,9 +62,17 @@ fun CoolerIllustration(
             context.assets.open("cooler_body.webp").use { BitmapFactory.decodeStream(it) }
         }.getOrNull()
     }
-    // 在开口处挖洞，得到"外壳遮罩"
+    // 在两个开口处挖洞，得到"外壳遮罩"
     val holed = remember(origin) {
-        origin?.let { punchOpening(it, FAN_X, FAN_Y, FAN_R * 1.06f) }
+        origin?.let {
+            punchHoles(
+                it,
+                listOf(
+                    Triple(HOLE1_X, HOLE1_Y, HOLE1_R * 1.04f),
+                    Triple(HOLE2_X, HOLE2_Y, HOLE2_R * 1.04f),
+                ),
+            )
+        }
     }
     val angle by rememberFanAngle(mode, connected)
     val phase by rememberLightPhase()
@@ -66,34 +80,44 @@ fun CoolerIllustration(
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.fillMaxWidth(0.92f).aspectRatio(IMAGE_RATIO)) {
             if (holed != null) {
-                // 先画风扇（在底层，相当于机身内部）
+                // 1) 一枚灯光 + 一枚扇叶，都居中在机身上；灯盘在叶轮后面
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawFanMotor(
-                        center = Offset(size.width * FAN_X, size.height * FAN_Y),
-                        openingRadius = size.width * FAN_R,
-                        angleDeg = angle,
+                    val c = Offset(size.width * FAN_CX, size.height * FAN_CY)
+                    drawLedWheel(
+                        center = c,
+                        radius = size.width * FAN_R * 0.95f,
                         lightMode = lightMode,
                         lightColor = lightColor,
                         phase = phase,
                     )
-                }
-                // 开口内缘的接触阴影（在机身之下，洞外部分会被机身盖住）
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val c = Offset(size.width * FAN_X, size.height * FAN_Y)
-                    val r = size.width * FAN_R
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colorStops = arrayOf(
-                                0.74f to Color.Transparent,
-                                0.92f to Color.Black.copy(alpha = 0.42f),
-                                1.00f to Color.Transparent,
-                            ),
-                            center = c,
-                            radius = r * 1.05f,
-                        ),
-                        radius = r * 1.05f,
+                    drawFanBlades(
                         center = c,
+                        radius = size.width * FAN_R,
+                        angleDeg = angle,
                     )
+                }
+                // 3) 两个开口内缘的接触阴影（洞外会被机身盖住）
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    listOf(
+                        Triple(HOLE1_X, HOLE1_Y, HOLE1_R),
+                        Triple(HOLE2_X, HOLE2_Y, HOLE2_R),
+                    ).forEach { h ->
+                        val c = Offset(size.width * h.first, size.height * h.second)
+                        val r = size.width * h.third
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colorStops = arrayOf(
+                                    0.72f to Color.Transparent,
+                                    0.92f to Color.Black.copy(alpha = 0.45f),
+                                    1.00f to Color.Transparent,
+                                ),
+                                center = c,
+                                radius = r * 1.05f,
+                            ),
+                            radius = r * 1.05f,
+                            center = c,
+                        )
+                    }
                 }
                 // 最后画挖过洞的机身：外壳、中缝、黑网都会盖住风扇边缘
                 Image(
@@ -105,10 +129,14 @@ fun CoolerIllustration(
             } else {
                 Canvas(modifier = Modifier.fillMaxSize()) { drawVectorFallback(darkTheme) }
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawFanMotor(
+                    drawFanBlades(
                         center = Offset(size.width * 0.5f, size.height * 0.5f),
-                        openingRadius = size.width * 0.22f,
+                        radius = size.width * 0.26f,
                         angleDeg = angle,
+                    )
+                    drawLedWheel(
+                        center = Offset(size.width * 0.5f, size.height * 0.5f),
+                        radius = size.width * 0.22f,
                         lightMode = lightMode,
                         lightColor = lightColor,
                         phase = phase,
@@ -123,15 +151,21 @@ fun CoolerIllustration(
  * 从风扇中心泛洪，把连通的暗色区域（=开口）抠成透明，形成"外壳遮罩"。
  * 这样风扇只会在开口内露出，外壳与中缝会自然压住风扇。
  */
-private fun punchOpening(src: Bitmap, cxF: Float, cyF: Float, rF: Float): Bitmap {
-    val w = src.width
-    val h = src.height
+private fun punchHoles(src: Bitmap, holes: List<Triple<Float, Float, Float>>): Bitmap {
     val out = src.copy(Bitmap.Config.ARGB_8888, true)
+    holes.forEach { (cxF, cyF, rF) -> punchOne(out, cxF, cyF, rF) }
+    return out
+}
+
+private fun punchOne(out: Bitmap, cxF: Float, cyF: Float, rF: Float) {
+    val w = out.width
+    val h = out.height
     val cx = (w * cxF).toInt()
     val cy = (h * cyF).toInt()
     val maxR = w * rF
     val maxR2 = maxR * maxR
 
+    val src = out
     val visited = BooleanArray(w * h)
     val stack = IntArray(w * h)
     var top = 0
@@ -158,7 +192,6 @@ private fun punchOpening(src: Bitmap, cxF: Float, cyF: Float, rF: Float): Bitmap
         if (y > 0 && !visited[idx - w]) stack[top++] = idx - w
         if (y < h - 1 && !visited[idx + w]) stack[top++] = idx + w
     }
-    return out
 }
 
 /** 没有实拍底图时的自绘外壳（开源仓库默认走这里） */

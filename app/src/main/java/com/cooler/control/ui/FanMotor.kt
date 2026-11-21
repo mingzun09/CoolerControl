@@ -22,10 +22,10 @@ import com.cooler.control.protocol.LightMode
 import kotlin.math.max
 
 /**
- * 风扇组件：单独的 KT，负责"转速 + 灯效"。
+ * 风扇组件：一枚位于机身内部的扇叶组 + 每个开口内的灯盘。
  *
- * 真机效果（见参考视频）：灯是一圈按扇区分色的灯盘，外沿更亮，
- * 细扇叶压在灯盘前面；整盘颜色随时间整体流转。
+ * 叶片是一整枚大风扇，机身两个开口各露出它的一半，中缝和外壳压在上面；
+ * 灯盘则按开口分别绘制，所以两边都能看到灯效。
  */
 @Composable
 fun rememberFanAngle(mode: CoolerMode?, connected: Boolean): State<Float> {
@@ -52,131 +52,107 @@ fun rememberFanAngle(mode: CoolerMode?, connected: Boolean): State<Float> {
 }
 
 private const val SECTORS = 8
+private const val BLADES = 7
 
-/**
- * 在风扇开口里画一枚风扇。
- *
- * @param openingRadius 开口半径（与底图里的黑洞一致）
- * @param angleDeg 当前旋转角度
- */
-fun DrawScope.drawFanMotor(
+/** 一整枚扇叶组（不含灯盘），画在机身后面 */
+fun DrawScope.drawFanBlades(
     center: Offset,
-    openingRadius: Float,
+    radius: Float,
     angleDeg: Float,
-    lightMode: LightMode,
-    lightColor: LightColor,
-    phase: Float,
     spin: Boolean = true,
 ) {
-    val r = openingRadius
-    val fanR = r * 0.92f
-
-    // 1. 开口底面：中心近黑，边缘渐隐，和底图黑洞自然衔接
-    drawCircle(
-        brush = Brush.radialGradient(
-            colorStops = arrayOf(
-                0.00f to Color(0xFF0A0B0D),
-                0.70f to Color(0xFF0D0F12),
-                0.94f to Color(0xCC0C0E11),
-                1.00f to Color(0x00000000),
-            ),
-            center = center,
-            radius = r,
-        ),
-        radius = r,
-        center = center,
-    )
-
-    if (lightMode != LightMode.OFF) {
-        // 2. 分扇区灯盘：由内向外逐渐变亮，模仿真机的导光环
-        val inner = fanR * 0.34f
-        val outer = fanR * 0.80f
-        val layers = 14
-        val sweep = 360f / SECTORS
-        for (k in 0 until layers) {
-            val f = k / (layers - 1f)
-            val radius = inner + (outer - inner) * f
-            val width = (outer - inner) / layers + 0.8f
-            val alpha = 0.05f + 0.55f * f * f
-            for (s in 0 until SECTORS) {
-                val t = (s + 0.5f) / SECTORS
-                val c = LightEffect.colorAt(lightMode, lightColor, t, phase)
-                drawArc(
-                    color = c.copy(alpha = alpha),
-                    startAngle = s * sweep + 1.2f,
-                    sweepAngle = sweep - 2.4f,
-                    useCenter = false,
-                    topLeft = Offset(center.x - radius, center.y - radius),
-                    size = Size(radius * 2, radius * 2),
-                    style = Stroke(width = width),
-                )
-            }
-        }
-
-        // 3. 外沿最亮的一圈 LED
-        val ringR = fanR * 0.84f
-        val ringW = fanR * 0.035f
-        for (s in 0 until SECTORS) {
-            val t = (s + 0.5f) / SECTORS
-            val c = LightEffect.colorAt(lightMode, lightColor, t, phase)
-            drawArc(
-                color = c,
-                startAngle = s * sweep,
-                sweepAngle = sweep - 1.5f,
-                useCenter = false,
-                topLeft = Offset(center.x - ringR, center.y - ringR),
-                size = Size(ringR * 2, ringR * 2),
-                style = Stroke(width = ringW),
-            )
-            // 灯珠高光
-            val mid = (s + 0.5f) * sweep
-            val rad = Math.toRadians(mid.toDouble())
-            val px = center.x + (ringR * kotlin.math.cos(rad)).toFloat()
-            val py = center.y + (ringR * kotlin.math.sin(rad)).toFloat()
-            drawCircle(color = Color.White.copy(alpha = 0.35f), radius = ringW * 0.5f, center = Offset(px, py))
-        }
-
-        // 4. 外溢光晕（轻微，压在底图黑区里）
-        val glow = LightEffect.colorAt(lightMode, lightColor, 0.5f, phase)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color.Transparent, glow.copy(alpha = 0.16f), Color.Transparent),
-                center = center,
-                radius = r * 0.98f,
-            ),
-            radius = r * 0.98f,
-            center = center,
-        )
-    }
-
-    // 5. 细扇叶（压在灯盘前面，像真机那样露出大部分灯光）
-    val blades = 7
-    val bladeColor = Color(0xFF0E1013).copy(alpha = 0.82f)
-    for (i in 0 until blades) {
-        rotate((if (spin) angleDeg else 0f) + i * (360f / blades), center) {
+    val bladeColor = Color(0xFF0D0F12).copy(alpha = 0.9f)
+    for (i in 0 until BLADES) {
+        rotate((if (spin) angleDeg else 0f) + i * (360f / BLADES), center) {
             val blade = Path().apply {
-                val innerR = fanR * 0.30f
-                val outerR = fanR * 0.96f
-                moveTo(center.x - fanR * 0.10f, center.y - innerR)
+                val innerR = radius * 0.16f
+                val outerR = radius * 0.97f
+                moveTo(center.x - radius * 0.075f, center.y - innerR)
                 cubicTo(
-                    center.x - fanR * 0.24f, center.y - outerR * 0.45f,
-                    center.x - fanR * 0.18f, center.y - outerR,
-                    center.x - fanR * 0.02f, center.y - outerR,
+                    center.x - radius * 0.20f, center.y - outerR * 0.45f,
+                    center.x - radius * 0.15f, center.y - outerR,
+                    center.x - radius * 0.012f, center.y - outerR,
                 )
-                lineTo(center.x + fanR * 0.03f, center.y - outerR)
+                lineTo(center.x + radius * 0.026f, center.y - outerR)
                 cubicTo(
-                    center.x + fanR * 0.09f, center.y - outerR * 0.45f,
-                    center.x + fanR * 0.06f, center.y - innerR,
-                    center.x + fanR * 0.06f, center.y - innerR,
+                    center.x + radius * 0.075f, center.y - outerR * 0.45f,
+                    center.x + radius * 0.05f, center.y - innerR,
+                    center.x + radius * 0.05f, center.y - innerR,
                 )
                 close()
             }
             drawPath(blade, bladeColor)
         }
     }
+    // 轮毂
+    drawCircle(Color(0xFF181B1F), radius * 0.115f, center)
+    drawCircle(Color(0xFF0E1013), radius * 0.09f, center)
+    drawCircle(Color(0xFF8A9199), radius * 0.02f, center)
+}
 
-    // 6. 轴心
-    drawCircle(Color(0xFF1B1E22), fanR * 0.30f, center)
-    drawCircle(Color(0xFF0E1013), fanR * 0.24f, center)
-    drawCircle(Color(0xFF9AA1A9), fanR * 0.055f, center)
+/** 一个开口内的分扇区灯盘 + LED 环 */
+fun DrawScope.drawLedWheel(
+    center: Offset,
+    radius: Float,
+    lightMode: LightMode,
+    lightColor: LightColor,
+    phase: Float,
+) {
+    if (lightMode == LightMode.OFF) return
+    val sweep = 360f / SECTORS
+
+    // 径向分层的扇区色块：内暗外亮
+    val inner = radius * 0.34f
+    val outer = radius * 0.80f
+    val layers = 14
+    for (k in 0 until layers) {
+        val f = k / (layers - 1f)
+        val rr = inner + (outer - inner) * f
+        val width = (outer - inner) / layers + 0.8f
+        val alpha = 0.05f + 0.55f * f * f
+        for (s in 0 until SECTORS) {
+            val t = (s + 0.5f) / SECTORS
+            drawArc(
+                color = LightEffect.colorAt(lightMode, lightColor, t, phase).copy(alpha = alpha),
+                startAngle = s * sweep + 1.2f,
+                sweepAngle = sweep - 2.4f,
+                useCenter = false,
+                topLeft = Offset(center.x - rr, center.y - rr),
+                size = Size(rr * 2, rr * 2),
+                style = Stroke(width = width),
+            )
+        }
+    }
+
+    // 外沿 LED
+    val ringR = radius * 0.84f
+    val ringW = radius * 0.035f
+    for (s in 0 until SECTORS) {
+        val t = (s + 0.5f) / SECTORS
+        drawArc(
+            color = LightEffect.colorAt(lightMode, lightColor, t, phase),
+            startAngle = s * sweep,
+            sweepAngle = sweep - 1.5f,
+            useCenter = false,
+            topLeft = Offset(center.x - ringR, center.y - ringR),
+            size = Size(ringR * 2, ringR * 2),
+            style = Stroke(width = ringW),
+        )
+        val rad = Math.toRadians(((s + 0.5f) * sweep).toDouble())
+        val px = center.x + (ringR * kotlin.math.cos(rad)).toFloat()
+        val py = center.y + (ringR * kotlin.math.sin(rad)).toFloat()
+        drawCircle(Color.White.copy(alpha = 0.32f), ringW * 0.5f, Offset(px, py))
+    }
+
+    // 内溢光
+    val glow = LightEffect.colorAt(lightMode, lightColor, 0.5f, phase)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color.Transparent, glow.copy(alpha = 0.14f), Color.Transparent),
+            center = center,
+            radius = radius * 0.9f,
+        ),
+        radius = radius * 0.9f,
+        center = center,
+    )
 }
