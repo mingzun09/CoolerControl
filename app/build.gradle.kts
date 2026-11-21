@@ -24,8 +24,8 @@ android {
         applicationId = "com.cooler.control"
         minSdk = 29
         targetSdk = 36
-        versionCode = 23
-        versionName = "0.23.0"
+        versionCode = 24
+        versionName = "0.24.0"
     }
 
     signingConfigs {
