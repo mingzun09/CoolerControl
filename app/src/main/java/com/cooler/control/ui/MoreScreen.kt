@@ -15,12 +15,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.cooler.control.BuildConfig
 import com.cooler.control.ble.CoolerState
+import com.cooler.control.update.UpdateResult
 
 private const val REPO_URL = "https://github.com/mingzun09/CoolerControl"
 
 @Composable
-fun MoreScreen(state: CoolerState, onOpenPermission: () -> Unit) {
+fun MoreScreen(
+    state: CoolerState,
+    onOpenPermission: () -> Unit,
+    update: UpdateResult?,
+    onCheckUpdate: () -> Unit,
+) {
     val context = LocalContext.current
     val liveUpdateOn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
@@ -75,8 +82,39 @@ fun MoreScreen(state: CoolerState, onOpenPermission: () -> Unit) {
         }
         SectionCard(title = "关于") {
             SettingRow(title = "协议", summary = "小米背夹私有 BLE（AF00 / AF07 / AF08）")
-            SettingRow(title = "版本", value = "0.12.0")
+            SettingRow(title = "版本", value = BuildConfig.VERSION_NAME)
             SettingRow(title = "说明", summary = "第三方客户端，与小米官方无关")
+        }
+
+        SectionCard(title = "更新") {
+            SettingRow(
+                title = "检查更新",
+                summary = when (update) {
+                    null -> "从 GitHub Releases 获取最新版本"
+                    is UpdateResult.Failed -> "检查失败：" + update.reason
+                    is UpdateResult.UpToDate -> "已是最新版本"
+                    is UpdateResult.Available -> "发现新版本 " + update.info.version
+                },
+                value = when (update) {
+                    null -> null
+                    is UpdateResult.Failed -> null
+                    is UpdateResult.UpToDate -> "最新"
+                    is UpdateResult.Available -> "可更新"
+                },
+                showArrow = true,
+                onClick = onCheckUpdate,
+            )
+            (update as? UpdateResult.Available)?.let { result ->
+                SettingRow(
+                    title = "下载 " + result.info.version,
+                    summary = "在浏览器中打开下载页",
+                    showArrow = true,
+                    onClick = {
+                        val url = result.info.apkUrl ?: result.info.pageUrl
+                        if (url.isNotBlank()) openUrl(context, url)
+                    },
+                )
+            }
         }
     }
 }

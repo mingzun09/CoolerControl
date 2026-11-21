@@ -97,6 +97,10 @@ private fun granted(context: Context, permission: String): Boolean =
 @Composable
 private fun CoolerApp(vm: CoolerViewModel) {
     val state by vm.state.collectAsState()
+    val update by vm.update.collectAsState()
+
+    // 启动时静默检查一次更新
+    LaunchedEffect(Unit) { vm.checkUpdate() }
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
 
@@ -270,6 +274,8 @@ private fun CoolerApp(vm: CoolerViewModel) {
                 MoreScreen(
                     state = state,
                     onOpenPermission = { showPermission = true },
+                    update = update,
+                    onCheckUpdate = { vm.checkUpdate() },
                 )
             }
 
