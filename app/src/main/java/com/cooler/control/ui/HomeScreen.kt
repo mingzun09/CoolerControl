@@ -1,5 +1,12 @@
 package com.cooler.control.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -56,11 +63,11 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp),
     ) {
-        DeviceCard(state, onScan, onStopScan, onConnect, onDisconnect)
-        HeroCard(state, connected)
-        ModeSliderCard(state, connected, onMode)
+        StaggeredItem(0) { DeviceCard(state, onScan, onStopScan, onConnect, onDisconnect) }
+        StaggeredItem(1) { HeroCard(state, connected) }
+        StaggeredItem(2) { ModeSliderCard(state, connected, onMode) }
 
-        SectionCard(title = "更多设置", enabled = connected) {
+        StaggeredItem(3) { SectionCard(title = "更多设置", enabled = connected) {
             SettingRow(
                 title = "灯效设置",
                 value = if (connected) state.lightMode?.label ?: "—" else "未连接",
@@ -76,7 +83,7 @@ fun HomeScreen(
                 onClick = onOpenTimer,
             )
             SettingRow(title = "设备信息", showArrow = true, onClick = onOpenMore)
-        }
+        } }
 
         state.error?.let {
             Text(
@@ -176,12 +183,21 @@ private fun HeroCard(state: CoolerState, connected: Boolean) {
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = if (temp != null) "${temp}℃" else "--",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MiuixTheme.colorScheme.primary,
-                    )
+                    AnimatedContent(
+                        targetState = temp,
+                        transitionSpec = {
+                            (slideInVertically(tween(260)) { it / 2 } + fadeIn(tween(200))) togetherWith
+                                (slideOutVertically(tween(260)) { -it / 2 } + fadeOut(tween(160)))
+                        },
+                        label = "temp",
+                    ) { value ->
+                        Text(
+                            text = if (value != null) "${value}℃" else "--",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MiuixTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 VerticalDivider(modifier = Modifier.height(40.dp))
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -218,11 +234,16 @@ private fun ModeSliderCard(state: CoolerState, connected: Boolean, onMode: (Cool
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    text = if (connected) shown.label else "未连接",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                )
+                AnimatedContent(
+                    targetState = if (connected) shown.label else "未连接",
+                    transitionSpec = {
+                        (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 3 }) togetherWith
+                            fadeOut(tween(140))
+                    },
+                    label = "modeName",
+                ) { label ->
+                    Text(text = label, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                }
                 Text(
                     text = if (connected) shown.desc else "连接后可调节",
                     fontSize = 12.sp,

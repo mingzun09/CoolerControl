@@ -17,6 +17,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -199,7 +206,20 @@ private fun CoolerApp(vm: CoolerViewModel) {
         },
     ) { padding ->
         val contentModifier = Modifier.padding(padding).padding(top = 4.dp)
-        when (screen) {
+        AnimatedContent(
+            targetState = screen,
+            transitionSpec = {
+                if (targetState != Screen.Home) {
+                    // 进入子页面：新页面从右侧淡入，旧页面向左轻移
+                    (slideInHorizontally(tween(300)) { it / 5 } + fadeIn(tween(220))) togetherWith
+                        (slideOutHorizontally(tween(300)) { -it / 12 } + fadeOut(tween(140)))
+                } else {
+                    (slideInHorizontally(tween(300)) { -it / 12 } + fadeIn(tween(220))) togetherWith
+                        (slideOutHorizontally(tween(300)) { it / 5 } + fadeOut(tween(140)))
+                }
+            },
+            label = "screen",
+        ) { current -> when (current) {
             Screen.Home -> HomeScreen(
                 state = state,
                 modifier = contentModifier,
@@ -235,6 +255,7 @@ private fun CoolerApp(vm: CoolerViewModel) {
             }
 
             Screen.Permission -> Unit
+        }
         }
     }
 }
