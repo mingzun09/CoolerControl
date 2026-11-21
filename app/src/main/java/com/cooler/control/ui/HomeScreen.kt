@@ -159,8 +159,10 @@ private fun HeroCard(state: CoolerState, connected: Boolean) {
             CoolerIllustration(
                 mode = state.mode,
                 connected = connected,
+                lightMode = state.lightMode ?: com.cooler.control.protocol.LightMode.ALWAYS_ON,
+                lightColor = state.lightColor ?: com.cooler.control.protocol.LightColor.SINGLE,
                 darkTheme = isSystemInDarkTheme(),
-                modifier = Modifier.fillMaxWidth().height(230.dp).padding(horizontal = 12.dp),
+                modifier = Modifier.padding(horizontal = 6.dp),
             )
             Spacer(Modifier.height(4.dp))
             Row(

@@ -1,14 +1,16 @@
 package com.cooler.control.ui
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -16,136 +18,139 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import com.cooler.control.protocol.CoolerMode
-import kotlin.math.max
+import com.cooler.control.protocol.LightColor
+import com.cooler.control.protocol.LightMode
+
+/** 底图原始尺寸（app/src/main/assets/cooler_body.webp） */
+private const val IMAGE_RATIO = 897f / 676f
+
+// 两个风扇在底图中的相对位置与半径（按图片标定）
+private const val FAN1_X = 0.468f
+private const val FAN1_Y = 0.336f
+private const val FAN1_R = 0.165f
+private const val FAN2_X = 0.468f
+private const val FAN2_Y = 0.668f
+private const val FAN2_R = 0.140f
 
 /**
- * 背夹外观示意（自绘矢量图，不依赖任何官方素材）。
- * 风扇转速随模式变化，未连接时停转。
+ * 背夹外观：优先使用 assets/cooler_body.webp 实拍底图，
+ * 在其上叠加两枚可旋转、带 RGB 灯效的风扇；没有底图时退回自绘矢量图。
  */
 @Composable
 fun CoolerIllustration(
     mode: CoolerMode?,
     connected: Boolean,
+    lightMode: LightMode,
+    lightColor: LightColor,
     modifier: Modifier = Modifier,
     darkTheme: Boolean = true,
 ) {
-    val speed = when {
-        !connected -> 0f
-        mode == CoolerMode.SILENT -> 0.35f
-        mode == CoolerMode.AUTO -> 0.7f
-        mode == CoolerMode.TURBO -> 1.15f
-        else -> 1.6f
+    val context = LocalContext.current
+    val bitmap = remember {
+        runCatching {
+            context.assets.open("cooler_body.webp").use { BitmapFactory.decodeStream(it) }
+        }.getOrNull()
     }
-    val transition = rememberInfiniteTransition(label = "fan")
-    val angle by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = (2600 / max(speed, 0.35f)).toInt(),
-                easing = LinearEasing,
-            ),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "angle",
-    )
+    val angle by rememberFanAngle(mode, connected)
+    val phase by rememberLightPhase()
 
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val spin = if (connected) angle else 0f
-
-        // 外壳：圆角八边形
-        val shellW = w * 0.66f
-        val shellH = h * 0.86f
-        val left = (w - shellW) / 2f
-        val top = (h - shellH) / 2f
-        val shell = Path().apply {
-            val cut = shellW * 0.16f
-            moveTo(left + cut, top)
-            lineTo(left + shellW - cut, top)
-            lineTo(left + shellW, top + cut)
-            lineTo(left + shellW, top + shellH - cut)
-            lineTo(left + shellW - cut, top + shellH)
-            lineTo(left + cut, top + shellH)
-            lineTo(left, top + shellH - cut)
-            lineTo(left, top + cut)
-            close()
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxWidth(0.92f).aspectRatio(IMAGE_RATIO)) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "小米冰封散热背夹",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val r1 = size.width * FAN1_R
+                    val r2 = size.width * FAN2_R
+                    drawFanMotor(
+                        center = Offset(size.width * FAN1_X, size.height * FAN1_Y),
+                        radius = r1,
+                        angleDeg = angle,
+                        lightMode = lightMode,
+                        lightColor = lightColor,
+                        phase = phase,
+                    )
+                    drawFanMotor(
+                        center = Offset(size.width * FAN2_X, size.height * FAN2_Y),
+                        radius = r2,
+                        angleDeg = -angle,
+                        lightMode = lightMode,
+                        lightColor = lightColor,
+                        phase = phase,
+                    )
+                }
+            } else {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawVectorFallback(darkTheme)
+                }
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawFanMotor(
+                        center = Offset(size.width * 0.30f, size.height * 0.5f),
+                        radius = size.width * 0.19f,
+                        angleDeg = angle,
+                        lightMode = lightMode,
+                        lightColor = lightColor,
+                        phase = phase,
+                    )
+                    drawFanMotor(
+                        center = Offset(size.width * 0.70f, size.height * 0.5f),
+                        radius = size.width * 0.19f,
+                        angleDeg = -angle,
+                        lightMode = lightMode,
+                        lightColor = lightColor,
+                        phase = phase,
+                    )
+                }
+            }
         }
-        drawPath(
-            path = shell,
-            brush = Brush.verticalGradient(
-                listOf(Color(0xFFF4F6F8), Color(0xFFD7DBE1), Color(0xFFB9BFC8)),
-            ),
-        )
-        drawPath(
-            path = shell,
-            color = if (darkTheme) Color(0x33FFFFFF) else Color(0x22000000),
-            style = Stroke(width = 1.5f),
-        )
-
-        // 左右两个风扇
-        val fanR = shellW * 0.30f
-        val cy = top + shellH / 2f
-        drawFan(Offset(left + shellW * 0.27f, cy), fanR, spin)
-        drawFan(Offset(left + shellW * 0.73f, cy), fanR, -spin)
-
-        // 中间银色条
-        val stripW = shellW * 0.10f
-        drawRoundRect(
-            brush = Brush.verticalGradient(
-                listOf(Color(0xFFFFFFFF), Color(0xFFCBD0D8)),
-            ),
-            topLeft = Offset(left + shellW / 2f - stripW / 2f, top + shellH * 0.06f),
-            size = Size(stripW, shellH * 0.88f),
-            cornerRadius = CornerRadius(stripW / 2f, stripW / 2f),
-        )
-
-        // 四角螺钉
-        val screwR = shellW * 0.018f
-        listOf(
-            Offset(left + shellW * 0.10f, top + shellH * 0.12f),
-            Offset(left + shellW * 0.90f, top + shellH * 0.12f),
-            Offset(left + shellW * 0.10f, top + shellH * 0.88f),
-            Offset(left + shellW * 0.90f, top + shellH * 0.88f),
-        ).forEach { drawCircle(Color(0xFF9AA1AB), screwR, it) }
     }
 }
 
-private fun DrawScope.drawFan(center: Offset, radius: Float, spin: Float) {
-    // 外圈
-    drawCircle(Color(0xFF2B2F35), radius, center)
-    drawCircle(Color(0xFF3A3F46), radius * 0.94f, center)
-    // 扇叶
-    val blades = 6
-    for (i in 0 until blades) {
-        rotate(spin + i * (360f / blades), center) {
-            val blade = Path().apply {
-                val inner = radius * 0.22f
-                val outer = radius * 0.86f
-                moveTo(center.x - radius * 0.10f, center.y - inner)
-                cubicTo(
-                    center.x - radius * 0.30f, center.y - outer * 0.55f,
-                    center.x - radius * 0.24f, center.y - outer,
-                    center.x - radius * 0.02f, center.y - outer,
-                )
-                lineTo(center.x + radius * 0.06f, center.y - outer)
-                cubicTo(
-                    center.x + radius * 0.16f, center.y - outer * 0.5f,
-                    center.x + radius * 0.10f, center.y - inner,
-                    center.x + radius * 0.10f, center.y - inner,
-                )
-                close()
-            }
-            drawPath(blade, Color(0xFF6E747C))
-        }
+/** 没有实拍底图时的自绘外壳（开源仓库默认走这里） */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVectorFallback(darkTheme: Boolean) {
+    val w = size.width
+    val h = size.height
+    val shellW = w * 0.66f
+    val shellH = h * 0.86f
+    val left = (w - shellW) / 2f
+    val top = (h - shellH) / 2f
+    val cut = shellW * 0.16f
+    val shell = Path().apply {
+        moveTo(left + cut, top)
+        lineTo(left + shellW - cut, top)
+        lineTo(left + shellW, top + cut)
+        lineTo(left + shellW, top + shellH - cut)
+        lineTo(left + shellW - cut, top + shellH)
+        lineTo(left + cut, top + shellH)
+        lineTo(left, top + shellH - cut)
+        lineTo(left, top + cut)
+        close()
     }
-    // 轴心
-    drawCircle(Color(0xFF4A4F57), radius * 0.26f, center)
-    drawCircle(Color(0xFF23262B), radius * 0.20f, center)
-    drawCircle(Color(0xFF8E959E), radius * 0.06f, center)
+    drawPath(
+        path = shell,
+        brush = Brush.verticalGradient(
+            listOf(Color(0xFFF4F6F8), Color(0xFFD7DBE1), Color(0xFFB9BFC8)),
+        ),
+    )
+    drawPath(
+        path = shell,
+        color = if (darkTheme) Color(0x33FFFFFF) else Color(0x22000000),
+        style = Stroke(width = 1.5f),
+    )
+    val stripW = shellW * 0.10f
+    drawRoundRect(
+        brush = Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFCBD0D8))),
+        topLeft = Offset(left + shellW / 2f - stripW / 2f, top + shellH * 0.06f),
+        size = Size(stripW, shellH * 0.88f),
+        cornerRadius = CornerRadius(stripW / 2f, stripW / 2f),
+    )
 }

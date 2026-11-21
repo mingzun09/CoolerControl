@@ -23,5 +23,8 @@ captures/
 .DS_Store
 Thumbs.db
 
+# 官方产品图仅本地使用，不入库（缺少时 App 会退回自绘矢量图）
+app/src/main/assets/cooler_body.*
+
 # Logs
 *.log
