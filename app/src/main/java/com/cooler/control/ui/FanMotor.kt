@@ -46,7 +46,6 @@ fun rememberFanMotion(mode: CoolerMode?, connected: Boolean): FanMotionState {
         !connected || mode == null -> 0f
         mode == CoolerMode.SILENT -> 180f
         mode == CoolerMode.AUTO -> 420f
-        mode == CoolerMode.TURBO -> 780f
         else -> 1260f
     }
     val velocity by animateFloatAsState(

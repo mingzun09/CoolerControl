@@ -234,7 +234,7 @@ private fun HeroCard(state: CoolerState, connected: Boolean, displayMode: Cooler
     }
 }
 
-/** 散热模式：四档滑块 */
+/** 散热模式：三档滑块 */
 @Composable
 private fun ModeSliderCard(
     state: CoolerState,
