@@ -80,21 +80,28 @@ fun CoolerIllustration(
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(modifier = Modifier.fillMaxWidth(0.92f).aspectRatio(IMAGE_RATIO)) {
             if (holed != null) {
-                // 1) 一枚灯光 + 一枚扇叶，都居中在机身上；灯盘在叶轮后面
+                // 每个开口内一枚风扇 + 灯环（各自在自己的洞里）
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val c = Offset(size.width * FAN_CX, size.height * FAN_CY)
-                    drawLedWheel(
-                        center = c,
-                        radius = size.width * FAN_R * 0.95f,
-                        lightMode = lightMode,
-                        lightColor = lightColor,
-                        phase = phase,
+                    val holes = listOf(
+                        Triple(HOLE1_X, HOLE1_Y, HOLE1_R),
+                        Triple(HOLE2_X, HOLE2_Y, HOLE2_R),
                     )
-                    drawFanBlades(
-                        center = c,
-                        radius = size.width * FAN_R,
-                        angleDeg = angle,
-                    )
+                    holes.forEachIndexed { i, h ->
+                        val c = Offset(size.width * h.first, size.height * h.second)
+                        val rr = size.width * h.third
+                        drawLedWheel(
+                            center = c,
+                            radius = rr * 0.98f,
+                            lightMode = lightMode,
+                            lightColor = lightColor,
+                            phase = phase,
+                        )
+                        drawFanBlades(
+                            center = c,
+                            radius = rr * 0.98f,
+                            angleDeg = if (i == 0) angle else angle * 0.85f,
+                        )
+                    }
                 }
                 // 3) 两个开口内缘的接触阴影（洞外会被机身盖住）
                 Canvas(modifier = Modifier.fillMaxSize()) {

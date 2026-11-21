@@ -16,17 +16,15 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
 import com.cooler.control.protocol.CoolerMode
 import com.cooler.control.protocol.LightColor
 import com.cooler.control.protocol.LightMode
+import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.sin
 
-/**
- * 风扇组件：一枚位于机身内部的扇叶组 + 每个开口内的灯盘。
- *
- * 叶片是一整枚大风扇，机身两个开口各露出它的一半，中缝和外壳压在上面；
- * 灯盘则按开口分别绘制，所以两边都能看到灯效。
- */
+/** 风扇与灯效的绘制 */
 @Composable
 fun rememberFanAngle(mode: CoolerMode?, connected: Boolean): State<Float> {
     val speed = when {
@@ -54,43 +52,62 @@ fun rememberFanAngle(mode: CoolerMode?, connected: Boolean): State<Float> {
 private const val SECTORS = 8
 private const val BLADES = 7
 
-/** 一整枚扇叶组（不含灯盘），画在机身后面 */
+/** 扇叶组：细叶片 + 高光边缘，画在灯盘之上 */
 fun DrawScope.drawFanBlades(
     center: Offset,
     radius: Float,
     angleDeg: Float,
     spin: Boolean = true,
 ) {
-    val bladeColor = Color(0xFF0D0F12).copy(alpha = 0.9f)
+    val base = Color(0xFF121418)
     for (i in 0 until BLADES) {
         rotate((if (spin) angleDeg else 0f) + i * (360f / BLADES), center) {
+            val innerR = radius * 0.20f
+            val outerR = radius * 0.95f
             val blade = Path().apply {
-                val innerR = radius * 0.16f
-                val outerR = radius * 0.97f
-                moveTo(center.x - radius * 0.075f, center.y - innerR)
+                moveTo(center.x - radius * 0.055f, center.y - innerR)
                 cubicTo(
-                    center.x - radius * 0.20f, center.y - outerR * 0.45f,
-                    center.x - radius * 0.15f, center.y - outerR,
-                    center.x - radius * 0.012f, center.y - outerR,
+                    center.x - radius * 0.16f, center.y - outerR * 0.42f,
+                    center.x - radius * 0.13f, center.y - outerR * 0.98f,
+                    center.x - radius * 0.005f, center.y - outerR,
                 )
-                lineTo(center.x + radius * 0.026f, center.y - outerR)
+                lineTo(center.x + radius * 0.02f, center.y - outerR)
                 cubicTo(
-                    center.x + radius * 0.075f, center.y - outerR * 0.45f,
-                    center.x + radius * 0.05f, center.y - innerR,
-                    center.x + radius * 0.05f, center.y - innerR,
+                    center.x + radius * 0.06f, center.y - outerR * 0.45f,
+                    center.x + radius * 0.045f, center.y - innerR,
+                    center.x + radius * 0.045f, center.y - innerR,
                 )
                 close()
             }
-            drawPath(blade, bladeColor)
+            drawPath(
+                blade,
+                brush = Brush.linearGradient(
+                    colors = listOf(base, Color(0xFF262A30)),
+                    start = Offset(center.x, center.y - outerR),
+                    end = Offset(center.x, center.y),
+                ),
+            )
+            drawPath(blade, Color(0x1AFFFFFF), style = Stroke(1.1f))
         }
     }
     // 轮毂
-    drawCircle(Color(0xFF181B1F), radius * 0.115f, center)
-    drawCircle(Color(0xFF0E1013), radius * 0.09f, center)
-    drawCircle(Color(0xFF8A9199), radius * 0.02f, center)
+    drawCircle(
+        brush = Brush.radialGradient(
+            listOf(Color(0xFF2A2E34), Color(0xFF101215)),
+            center = center,
+            radius = radius * 0.13f,
+        ),
+        radius = radius * 0.13f,
+        center = center,
+    )
+    drawCircle(Color(0xFF0A0B0D), radius * 0.085f, center)
+    drawCircle(Color(0xFF9BA2AA), radius * 0.018f, center)
 }
 
-/** 一个开口内的分扇区灯盘 + LED 环 */
+/**
+ * 灯盘：扇区底色 + 发光环 + 灯珠高光。
+ * 绘制顺序上它在扇叶之前，所以光会从叶缝里透出来。
+ */
 fun DrawScope.drawLedWheel(
     center: Offset,
     radius: Float,
@@ -101,58 +118,90 @@ fun DrawScope.drawLedWheel(
     if (lightMode == LightMode.OFF) return
     val sweep = 360f / SECTORS
 
-    // 径向分层的扇区色块：内暗外亮
-    val inner = radius * 0.34f
-    val outer = radius * 0.80f
-    val layers = 14
-    for (k in 0 until layers) {
-        val f = k / (layers - 1f)
-        val rr = inner + (outer - inner) * f
-        val width = (outer - inner) / layers + 0.8f
-        val alpha = 0.05f + 0.55f * f * f
-        for (s in 0 until SECTORS) {
-            val t = (s + 0.5f) / SECTORS
-            drawArc(
-                color = LightEffect.colorAt(lightMode, lightColor, t, phase).copy(alpha = alpha),
-                startAngle = s * sweep + 1.2f,
-                sweepAngle = sweep - 2.4f,
-                useCenter = false,
-                topLeft = Offset(center.x - rr, center.y - rr),
-                size = Size(rr * 2, rr * 2),
-                style = Stroke(width = width),
-            )
-        }
-    }
-
-    // 外沿 LED
-    val ringR = radius * 0.84f
-    val ringW = radius * 0.035f
+    // 1) 扇区底色：整片淡淡的一层，颜色随角度变化
     for (s in 0 until SECTORS) {
         val t = (s + 0.5f) / SECTORS
+        val c = LightEffect.colorAt(lightMode, lightColor, t, phase)
         drawArc(
-            color = LightEffect.colorAt(lightMode, lightColor, t, phase),
-            startAngle = s * sweep,
-            sweepAngle = sweep - 1.5f,
-            useCenter = false,
-            topLeft = Offset(center.x - ringR, center.y - ringR),
-            size = Size(ringR * 2, ringR * 2),
-            style = Stroke(width = ringW),
+            color = c.copy(alpha = 0.22f),
+            startAngle = s * sweep + 1.5f,
+            sweepAngle = sweep - 3f,
+            useCenter = true,
+            topLeft = Offset(center.x - radius * 0.62f, center.y - radius * 0.62f),
+            size = Size(radius * 1.24f, radius * 1.24f),
         )
-        val rad = Math.toRadians(((s + 0.5f) * sweep).toDouble())
-        val px = center.x + (ringR * kotlin.math.cos(rad)).toFloat()
-        val py = center.y + (ringR * kotlin.math.sin(rad)).toFloat()
-        drawCircle(Color.White.copy(alpha = 0.32f), ringW * 0.5f, Offset(px, py))
     }
 
-    // 内溢光
-    val glow = LightEffect.colorAt(lightMode, lightColor, 0.5f, phase)
+    // 2) 光晕：宽而淡，营造"透出来"的感觉
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(Color.Transparent, glow.copy(alpha = 0.14f), Color.Transparent),
+            colorStops = arrayOf(
+                0.55f to Color.Transparent,
+                0.82f to LightEffect.colorAt(lightMode, lightColor, 0.5f, phase).copy(alpha = 0.16f),
+                1.00f to Color.Transparent,
+            ),
             center = center,
-            radius = radius * 0.9f,
+            radius = radius * 0.95f,
         ),
-        radius = radius * 0.9f,
+        radius = radius * 0.95f,
+        center = center,
+    )
+
+    // 3) 发光环：外柔光 + 中层 + 亮芯，逐层叠加
+    val ringR = radius * 0.80f
+    for (s in 0 until SECTORS) {
+        val t = (s + 0.5f) / SECTORS
+        val c = LightEffect.colorAt(lightMode, lightColor, t, phase)
+        val start = s * sweep + 0.6f
+        val sw = sweep - 1.2f
+        drawArc(
+            color = c.copy(alpha = 0.18f),
+            startAngle = start, sweepAngle = sw, useCenter = false,
+            topLeft = Offset(center.x - ringR, center.y - ringR),
+            size = Size(ringR * 2, ringR * 2),
+            style = Stroke(radius * 0.26f),
+        )
+        drawArc(
+            color = c.copy(alpha = 0.65f),
+            startAngle = start, sweepAngle = sw, useCenter = false,
+            topLeft = Offset(center.x - ringR, center.y - ringR),
+            size = Size(ringR * 2, ringR * 2),
+            style = Stroke(radius * 0.07f),
+        )
+        drawArc(
+            color = lerp(c, Color.White, 0.55f),
+            startAngle = start, sweepAngle = sw, useCenter = false,
+            topLeft = Offset(center.x - ringR, center.y - ringR),
+            size = Size(ringR * 2, ringR * 2),
+            style = Stroke(radius * 0.022f),
+        )
+    }
+
+    // 4) 灯珠高光
+    for (s in 0 until SECTORS) {
+        val t = (s + 0.5f) / SECTORS
+        val c = LightEffect.colorAt(lightMode, lightColor, t, phase)
+        val ang = Math.toRadians(((s + 0.5f) * sweep).toDouble())
+        val x = center.x + (ringR * cos(ang)).toFloat()
+        val y = center.y + (ringR * sin(ang)).toFloat()
+        drawCircle(lerp(c, Color.White, 0.6f).copy(alpha = 0.85f), radius * 0.035f, Offset(x, y))
+    }
+}
+
+/** 玻璃反光：让开口看起来有层镜面 */
+fun DrawScope.drawGlassSheen(center: Offset, radius: Float) {
+    drawCircle(
+        brush = Brush.radialGradient(
+            colorStops = arrayOf(
+                0.0f to Color.White.copy(alpha = 0.001f),
+                0.55f to Color.White.copy(alpha = 0.05f),
+                0.80f to Color.White.copy(alpha = 0.015f),
+                1.0f to Color.Transparent,
+            ),
+            center = Offset(center.x - radius * 0.22f, center.y - radius * 0.26f),
+            radius = radius * 1.1f,
+        ),
+        radius = radius,
         center = center,
     )
 }
