@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CoolerControl"
 include(":app")
+include(":xposed-stub")

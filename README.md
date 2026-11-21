@@ -105,6 +105,26 @@ ColorOS 把 Android 16 的「提升型常驻通知（Live Update）」渲染成�
   - App 内「设备信息 → 权限 → 流体云 / 实时更新」跳转系统设置，或
   - `adb shell cmd appops set com.cooler.control POST_PROMOTED_NOTIFICATIONS allow`
 
+## LSPosed 模块（可选）
+
+App 同时是一个 LSPosed 模块，用来解锁 ColorOS 游戏空间里的 **X 模式**。
+
+原理：游戏空间通过 `com.oplus.games` 里的背夹判定类决定是否展示 X 模式。
+模块把下面两处强制为 true：
+
+| 目标 | 说明 |
+|---|---|
+| `business.module.perfmode.backclip.CoolingBackClipOplusFeature#isConnectCool` | 背夹是否连接 |
+| `com.oplus.addon.OplusFeatureHelper` + `oplus.software.general.cooling.back.clip.enable` | 特性位 |
+
+启用方式：
+
+1. 安装后打开 LSPosed → 模块 → 启用「背夹控制」
+2. 作用域勾选 **游戏空间**（`com.oplus.games`）
+3. 强制停止游戏空间或重启手机
+
+> 需要 root + LSPosed。不启用时 App 的所有功能照常可用，行为与普通 App 一致。
+
 ## 已知问题 / 待办
 
 - 设备改名、固件版本读取、OTA 未实现

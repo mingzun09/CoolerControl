@@ -40,6 +40,12 @@
             android:name=".service.CoolerActionReceiver"
             android:exported="false" />
 
+        <!-- LSPosed 模块声明：未启用时对普通用户无影响 -->
+        <meta-data android:name="xposedmodule" android:value="true" />
+        <meta-data android:name="xposeddescription" android:value="让 ColorOS 游戏空间识别到散热背夹，解锁 X 模式" />
+        <meta-data android:name="xposedminversion" android:value="93" />
+        <meta-data android:name="xposedscope" android:resource="@array/xposed_scope" />
+
         <service
             android:name=".service.CoolerService"
             android:exported="false"

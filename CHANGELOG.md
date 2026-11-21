@@ -1,5 +1,13 @@
 # 更新日志
 
+## 0.18.0
+
+- 新增 LSPosed 模块能力：hook `com.oplus.games`，让游戏空间认为已连接散热背夹，从而解锁 X 模式
+  - 背夹判定：`CoolingBackClipOplusFeature` / `CoolingBackClipRealmeFeature` 的 `isConnect* / isCoolType*` 强制为 true
+  - 特性位：`oplus.software.general.cooling.back.clip.enable` 强制为 true
+  - 未在 LSPosed 中启用时，App 行为与之前完全一致
+- 新增 `xposed-stub` 编译期桩模块（不会打进 APK）
+
 ## 0.17.0
 
 - 新增 ColorOS 风格的设备连接弹窗：从顶部滑入，显示设备名、温度、当前模式

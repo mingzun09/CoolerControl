@@ -14,8 +14,8 @@ android {
         applicationId = "com.cooler.control"
         minSdk = 29
         targetSdk = 36
-        versionCode = 17
-        versionName = "0.17.0"
+        versionCode = 18
+        versionName = "0.18.0"
     }
 
     buildTypes {
@@ -48,6 +48,8 @@ kotlin {
 }
 
 dependencies {
+    // 仅编译期可见，运行时的 Xposed 类由 LSPosed 提供
+    compileOnly(project(":xposed-stub"))
     implementation("org.jetbrains.compose.runtime:runtime:1.10.3")
     implementation("org.jetbrains.compose.foundation:foundation:1.10.3")
     implementation("org.jetbrains.compose.ui:ui:1.10.3")
