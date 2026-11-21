@@ -24,7 +24,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.cooler.control.ble.ConnectionState
 import com.cooler.control.service.CoolerService
+import com.cooler.control.ui.ConnectPopup
 import com.cooler.control.ui.CoolerTheme
 import com.cooler.control.ui.HomeScreen
 import com.cooler.control.ui.LightScreen
@@ -96,6 +101,8 @@ private fun CoolerApp(vm: CoolerViewModel) {
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
 
     var screen by remember { mutableStateOf(Screen.Home) }
+    var showPopup by remember { mutableStateOf(false) }
+    var wasConnected by remember { mutableStateOf(false) }
     var showPermission by remember { mutableStateOf(!prefs.getBoolean(KEY_ONBOARDED, false)) }
     var permVersion by remember { mutableIntStateOf(0) }
 
@@ -142,6 +149,17 @@ private fun CoolerApp(vm: CoolerViewModel) {
                 granted = notify,
             ),
         )
+    }
+
+    // 连接成功时弹出 ColorOS 风格提示，3.8 秒后自动消失
+    LaunchedEffect(state.connection) {
+        val now = state.connection == ConnectionState.CONNECTED
+        if (now && !wasConnected) {
+            showPopup = true
+            kotlinx.coroutines.delay(3800)
+            showPopup = false
+        }
+        wasConnected = now
     }
 
     // 首次进入且已授权时自动开始搜索
@@ -193,6 +211,7 @@ private fun CoolerApp(vm: CoolerViewModel) {
         Screen.Permission -> "权限"
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             SmallTopAppBar(
@@ -257,5 +276,17 @@ private fun CoolerApp(vm: CoolerViewModel) {
             Screen.Permission -> Unit
         }
         }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize().statusBarsPadding(),
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        ConnectPopup(
+            visible = showPopup,
+            state = state,
+            onDismiss = { showPopup = false },
+        )
+    }
     }
 }
