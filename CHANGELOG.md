@@ -1,5 +1,10 @@
 # 更新日志
 
+## 0.21.0
+
+- 修复 LSPosed 模块完全没生效的问题：桩类的 `XposedBridge.hookMethod` 返回类型与 LSPosed 运行时不符（`Object` vs `XC_MethodHook.Unhook`），导致每次 hook 都抛 `NoSuchMethodError` 并被静默吞掉
+- hook 目标改为真机实测的 `business.module.perfmode.backclip.CoolingBackClipRealmeFeature`（11 个方法，R8 混淆），强制其背夹判定与 X 模式开关为 true
+
 ## 0.20.0
 
 - 内置检查更新：启动时静默查询 GitHub Releases，比对版本号

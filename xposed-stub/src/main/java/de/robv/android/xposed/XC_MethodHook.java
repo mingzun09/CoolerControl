@@ -20,6 +20,11 @@ public abstract class XC_MethodHook {
         }
     }
 
+    /** 与 LSPosed 运行时签名保持一致：返回类型参与 JVM 方法描述符 */
+    public static class Unhook {
+        public void unhook() {}
+    }
+
     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {}
     protected void afterHookedMethod(MethodHookParam param) throws Throwable {}
 }
