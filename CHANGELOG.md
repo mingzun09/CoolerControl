@@ -1,5 +1,10 @@
 # 更新日志
 
+## 0.22.0
+
+- hook 范围扩大到整个 `business.module.perfmode.backclip` 包（`a`/`b`/`c`/`d` 四个混淆类）
+- 实测确认 `backclip.a.l()` 才是运行时真正被调用的背夹判定，已强制返回 true
+
 ## 0.21.0
 
 - 修复 LSPosed 模块完全没生效的问题：桩类的 `XposedBridge.hookMethod` 返回类型与 LSPosed 运行时不符（`Object` vs `XC_MethodHook.Unhook`），导致每次 hook 都抛 `NoSuchMethodError` 并被静默吞掉

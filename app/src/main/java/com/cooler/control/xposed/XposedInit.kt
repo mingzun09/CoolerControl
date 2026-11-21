@@ -18,36 +18,40 @@ class XposedInit : IXposedHookLoadPackage {
     }
 
     private fun hookRealmeFeature(cl: ClassLoader) {
-        val c = findClass(REALME_FEATURE, cl)
-        if (c == null) {
-            XposedBridge.log(TAG + ": NOT FOUND " + REALME_FEATURE)
-            return
-        }
-        forceFlags(c)
-        var hooked = 0
-        for (m in c.declaredMethods) {
-            val rt = m.returnType
-            val isBool = rt == Boolean::class.javaPrimitiveType || rt == java.lang.Boolean::class.java
-            val isSuspend = rt == Any::class.java
-            if (!isBool && !isSuspend) continue
-            if (m.name == "name") continue
-            try {
-                XposedBridge.hookMethod(m, object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        forceFlags(param.thisObject?.javaClass ?: c)
-                        val r = param.result
-                        if (isBool || r is Boolean) {
-                            param.result = true
-                            XposedBridge.log(TAG + ": force " + m.name + " -> true")
+        val names = CANDIDATES
+        var any = false
+        for (name in names) {
+            val c = findClass(name, cl) ?: continue
+            any = true
+            XposedBridge.log(TAG + ": found " + name + " methods=" + c.declaredMethods.size)
+            forceFlags(c)
+            var hooked = 0
+            for (m in c.declaredMethods) {
+                val rt = m.returnType
+                val isBool = rt == Boolean::class.javaPrimitiveType || rt == java.lang.Boolean::class.java
+                val isSuspend = rt == Any::class.java
+                if (!isBool && !isSuspend) continue
+                if (m.name == "name") continue
+                if (m.parameterCount > 2) continue
+                try {
+                    XposedBridge.hookMethod(m, object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            forceFlags(param.thisObject?.javaClass ?: c)
+                            val r = param.result
+                            if (isBool || r is Boolean) {
+                                param.result = true
+                                XposedBridge.log(TAG + ": force " + name + "." + m.name + " -> true")
+                            }
                         }
-                    }
-                })
-                hooked++
-            } catch (t: Throwable) {
-                XposedBridge.log(TAG + ": hook fail " + m.name + " -> " + t)
+                    })
+                    hooked++
+                } catch (t: Throwable) {
+                    XposedBridge.log(TAG + ": hook fail " + m.name + " -> " + t)
+                }
             }
+            XposedBridge.log(TAG + ": " + name + " hooked " + hooked)
         }
-        XposedBridge.log(TAG + ": " + REALME_FEATURE + " hooked " + hooked)
+        if (!any) XposedBridge.log(TAG + ": no candidate class found")
     }
 
     private fun forceFlags(c: Class<*>) {
@@ -68,6 +72,12 @@ class XposedInit : IXposedHookLoadPackage {
     companion object {
         private const val TAG = "CoolerXposed"
         private const val GAME_PACKAGE = "com.oplus.games"
-        private const val REALME_FEATURE = "business.module.perfmode.backclip.CoolingBackClipRealmeFeature"
+        private val CANDIDATES = listOf(
+            "business.module.perfmode.backclip.CoolingBackClipRealmeFeature",
+            "business.module.perfmode.backclip.a",
+            "business.module.perfmode.backclip.b",
+            "business.module.perfmode.backclip.c",
+            "business.module.perfmode.backclip.d",
+        )
     }
 }
