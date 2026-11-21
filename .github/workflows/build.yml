@@ -18,19 +18,28 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # 本项目 compileSdk = 37，官方包名是 platforms;android-37.0
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-37 build-tools;36.0.0'
+          packages: 'platforms;android-37.0 build-tools;36.0.0'
+
+      # AGP 8.13 按 "android-37" 查找平台，这里把 37.0 复制一份并改 ApiLevel
+      - name: Align platform 37 for AGP
+        run: |
+          SDK="$ANDROID_HOME"
+          cp -r "$SDK/platforms/android-37.0" "$SDK/platforms/android-37"
+          sed -i 's/AndroidVersion.ApiLevel=37.0/AndroidVersion.ApiLevel=37/' "$SDK/platforms/android-37/source.properties"
+          grep -E 'ApiLevel|Pkg.Revision' "$SDK/platforms/android-37/source.properties"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
-
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest --no-daemon
+
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
