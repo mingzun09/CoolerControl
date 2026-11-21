@@ -1,0 +1,2 @@
+# CoolerControl
+移植Xiaomi HyperOS的散热背夹控制器并作为独立软件使用，目前适配小米冰封散热背夹
