@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -23,9 +24,8 @@ import kotlin.math.max
 /**
  * 风扇组件：单独的 KT，负责"转速 + 灯效"。
  *
- * - [rememberFanAngle] 按散热模式给出旋转角度
- * - [drawFanMotor] 在底图的风扇开口内绘制旋转扇叶与灯环，
- *   边缘用渐变和阴影收进开口内部，避免看起来像贴了一层圆形贴纸
+ * 真机效果（见参考视频）：灯是一圈按扇区分色的灯盘，外沿更亮，
+ * 细扇叶压在灯盘前面；整盘颜色随时间整体流转。
  */
 @Composable
 fun rememberFanAngle(mode: CoolerMode?, connected: Boolean): State<Float> {
@@ -51,57 +51,13 @@ fun rememberFanAngle(mode: CoolerMode?, connected: Boolean): State<Float> {
     )
 }
 
-/** 灯环：位置和粗细都以开口半径为基准 */
-private fun DrawScope.drawLedRing(
-    center: Offset,
-    openingRadius: Float,
-    lightMode: LightMode,
-    lightColor: LightColor,
-    phase: Float,
-    alpha: Float = 0.9f,
-    thin: Boolean = false,
-) {
-    if (lightMode == LightMode.OFF) return
-    val fanR = openingRadius * 0.80f
-    val ringR = fanR * 0.94f
-    val ringW = fanR * (if (thin) 0.035f else 0.07f)
-    val colors = when (lightMode) {
-        LightMode.FLOW, LightMode.RAINBOW -> (0 until 24).map { i ->
-            LightEffect.colorAt(lightMode, lightColor, i / 24f, phase)
-        } + LightEffect.colorAt(lightMode, lightColor, 1f, phase)
-        else -> listOf(
-            LightEffect.colorAt(lightMode, lightColor, 0f, phase),
-            LightEffect.colorAt(lightMode, lightColor, 0.5f, phase),
-            LightEffect.colorAt(lightMode, lightColor, 1f, phase),
-        )
-    }
-    val brush = if (colors.size > 3) Brush.sweepGradient(colors, center) else Brush.linearGradient(
-        colors,
-        start = Offset(center.x - ringR, center.y),
-        end = Offset(center.x + ringR, center.y),
-    )
-    drawCircle(brush = brush, radius = ringR, center = center, style = Stroke(ringW), alpha = alpha)
-
-    if (!thin) {
-        val glow = LightEffect.colorAt(lightMode, lightColor, 0.5f, phase)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color.Transparent, glow.copy(alpha = 0.12f), Color.Transparent),
-                center = center,
-                radius = fanR * 0.9f,
-            ),
-            radius = fanR * 0.9f,
-            center = center,
-        )
-    }
-}
+private const val SECTORS = 8
 
 /**
  * 在风扇开口里画一枚风扇。
  *
  * @param openingRadius 开口半径（与底图里的黑洞一致）
  * @param angleDeg 当前旋转角度
- * @param recess 内凹程度 0..1，越大越像陷进去
  */
 fun DrawScope.drawFanMotor(
     center: Offset,
@@ -111,16 +67,16 @@ fun DrawScope.drawFanMotor(
     lightColor: LightColor,
     phase: Float,
     spin: Boolean = true,
-    recess: Float = 1f,
 ) {
     val r = openingRadius
+    val fanR = r * 0.92f
 
-    // 1. 开口底面：中心接近纯黑，向边缘渐隐，和底图的黑洞自然衔接
+    // 1. 开口底面：中心近黑，边缘渐隐，和底图黑洞自然衔接
     drawCircle(
         brush = Brush.radialGradient(
             colorStops = arrayOf(
-                0.00f to Color(0xFF0B0C0E),
-                0.72f to Color(0xFF0E1013),
+                0.00f to Color(0xFF0A0B0D),
+                0.70f to Color(0xFF0D0F12),
                 0.94f to Color(0xCC0C0E11),
                 1.00f to Color(0x00000000),
             ),
@@ -131,53 +87,96 @@ fun DrawScope.drawFanMotor(
         center = center,
     )
 
-    // 2. 内壁阴影：几层半透明描边模拟凹陷
-    for (i in 1..3) {
-        val t = i / 3f
+    if (lightMode != LightMode.OFF) {
+        // 2. 分扇区灯盘：由内向外逐渐变亮，模仿真机的导光环
+        val inner = fanR * 0.34f
+        val outer = fanR * 0.80f
+        val layers = 14
+        val sweep = 360f / SECTORS
+        for (k in 0 until layers) {
+            val f = k / (layers - 1f)
+            val radius = inner + (outer - inner) * f
+            val width = (outer - inner) / layers + 0.8f
+            val alpha = 0.05f + 0.55f * f * f
+            for (s in 0 until SECTORS) {
+                val t = (s + 0.5f) / SECTORS
+                val c = LightEffect.colorAt(lightMode, lightColor, t, phase)
+                drawArc(
+                    color = c.copy(alpha = alpha),
+                    startAngle = s * sweep + 1.2f,
+                    sweepAngle = sweep - 2.4f,
+                    useCenter = false,
+                    topLeft = Offset(center.x - radius, center.y - radius),
+                    size = Size(radius * 2, radius * 2),
+                    style = Stroke(width = width),
+                )
+            }
+        }
+
+        // 3. 外沿最亮的一圈 LED
+        val ringR = fanR * 0.84f
+        val ringW = fanR * 0.035f
+        for (s in 0 until SECTORS) {
+            val t = (s + 0.5f) / SECTORS
+            val c = LightEffect.colorAt(lightMode, lightColor, t, phase)
+            drawArc(
+                color = c,
+                startAngle = s * sweep,
+                sweepAngle = sweep - 1.5f,
+                useCenter = false,
+                topLeft = Offset(center.x - ringR, center.y - ringR),
+                size = Size(ringR * 2, ringR * 2),
+                style = Stroke(width = ringW),
+            )
+            // 灯珠高光
+            val mid = (s + 0.5f) * sweep
+            val rad = Math.toRadians(mid.toDouble())
+            val px = center.x + (ringR * kotlin.math.cos(rad)).toFloat()
+            val py = center.y + (ringR * kotlin.math.sin(rad)).toFloat()
+            drawCircle(color = Color.White.copy(alpha = 0.35f), radius = ringW * 0.5f, center = Offset(px, py))
+        }
+
+        // 4. 外溢光晕（轻微，压在底图黑区里）
+        val glow = LightEffect.colorAt(lightMode, lightColor, 0.5f, phase)
         drawCircle(
-            color = Color.Black.copy(alpha = 0.22f * recess * (1f - t * 0.5f)),
-            radius = r * (0.99f - t * 0.06f),
+            brush = Brush.radialGradient(
+                colors = listOf(Color.Transparent, glow.copy(alpha = 0.16f), Color.Transparent),
+                center = center,
+                radius = r * 0.98f,
+            ),
+            radius = r * 0.98f,
             center = center,
-            style = Stroke(width = r * 0.05f),
         )
     }
 
-    // 3. 灯环：先画在扇叶下面，叶片会遮住一部分，更像灯在叶轮后方
-    drawLedRing(center, openingRadius, lightMode, lightColor, phase)
-
-    // 4. 旋转扇叶（比开口小一圈，露出内壁）
-    val fanR = r * 0.80f
-    val blades = 5
-    val bladeColor = Color(0xFF2C3036)
+    // 5. 细扇叶（压在灯盘前面，像真机那样露出大部分灯光）
+    val blades = 7
+    val bladeColor = Color(0xFF0E1013).copy(alpha = 0.82f)
     for (i in 0 until blades) {
         rotate((if (spin) angleDeg else 0f) + i * (360f / blades), center) {
-            val inner = fanR * 0.22f
-            val outer = fanR * 0.97f
             val blade = Path().apply {
-                moveTo(center.x - fanR * 0.20f, center.y - inner)
+                val innerR = fanR * 0.30f
+                val outerR = fanR * 0.96f
+                moveTo(center.x - fanR * 0.10f, center.y - innerR)
                 cubicTo(
-                    center.x - fanR * 0.46f, center.y - outer * 0.45f,
-                    center.x - fanR * 0.34f, center.y - outer,
-                    center.x - fanR * 0.02f, center.y - outer * 0.97f,
+                    center.x - fanR * 0.24f, center.y - outerR * 0.45f,
+                    center.x - fanR * 0.18f, center.y - outerR,
+                    center.x - fanR * 0.02f, center.y - outerR,
                 )
-                lineTo(center.x + fanR * 0.12f, center.y - outer * 0.97f)
+                lineTo(center.x + fanR * 0.03f, center.y - outerR)
                 cubicTo(
-                    center.x + fanR * 0.30f, center.y - outer * 0.45f,
-                    center.x + fanR * 0.18f, center.y - inner,
-                    center.x + fanR * 0.18f, center.y - inner,
+                    center.x + fanR * 0.09f, center.y - outerR * 0.45f,
+                    center.x + fanR * 0.06f, center.y - innerR,
+                    center.x + fanR * 0.06f, center.y - innerR,
                 )
                 close()
             }
             drawPath(blade, bladeColor)
-            drawPath(blade, Color(0x14FFFFFF), style = Stroke(1.2f))
         }
     }
 
-    // 5. 灯环外露部分（半透明），避免整圈被叶片完全挡住
-    drawLedRing(center, openingRadius, lightMode, lightColor, phase, alpha = 0.45f, thin = true)
-
     // 6. 轴心
-    drawCircle(Color(0xFF2E3238), fanR * 0.30f, center)
-    drawCircle(Color(0xFF0F1113), fanR * 0.24f, center)
-    drawCircle(Color(0xFF8A9199), fanR * 0.05f, center)
+    drawCircle(Color(0xFF1B1E22), fanR * 0.30f, center)
+    drawCircle(Color(0xFF0E1013), fanR * 0.24f, center)
+    drawCircle(Color(0xFF9AA1A9), fanR * 0.055f, center)
 }
