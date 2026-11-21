@@ -28,3 +28,7 @@ app/src/main/assets/cooler_body.*
 
 # Logs
 *.log
+# 签名材料
+keystore.properties
+*.jks
+*.keystore

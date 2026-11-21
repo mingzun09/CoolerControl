@@ -56,6 +56,27 @@ TLV [len][type(2)][value]
 | 灯效 `0x42[0]` | 0 关闭 · 1 彩虹 · 2 呼吸 · 3 流光 · 4 常亮 |
 | 配色 `0x42[1]` | 0 彩色 · 1 单色 · 2 三色 |
 
+## 签名
+
+正式版使用自签证书（keystore 不进仓库，`keystore.properties` 已 gitignore）：
+
+```properties
+storeFile=../release-keystore/cooler.jks
+storePassword=***
+keyAlias=cooler
+keyPassword=***
+```
+
+`./gradlew :app:assembleRelease` 会输出已签名的 `app/build/outputs/apk/release/app-release.apk`。
+
+证书指纹（SHA-256）：
+
+```
+8A:38:7E:FA:6E:BC:61:6C:A6:2F:2E:F1:B9:FA:78:D4:87:A1:CF:66:40:84:50:1C:ED:93:8E:FF:14:BB:12:9F
+```
+
+> 正式签名与此前的 debug 包不兼容，切换时需要先卸载。
+
 ## 构建
 
 需要 JDK 21 与 Android SDK（platform 37、build-tools 36.0.0）。
