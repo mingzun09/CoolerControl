@@ -1,28 +1,43 @@
 # 背夹控制 · CoolerControl
 
-[![Build APK](https://github.com/OWNER/CoolerControl/actions/workflows/build.yml/badge.svg)](https://github.com/OWNER/CoolerControl/actions/workflows/build.yml)
+[![Build APK](https://github.com/mingzun09/CoolerControl/actions/workflows/build.yml/badge.svg)](https://github.com/mingzun09/CoolerControl/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 小米冰封散热背夹（"小米背夹"）的第三方 Android 控制 App。
 
-在**没有小米系统界面**的手机上（例如一加 15 / OxygenOS），原厂只能靠背夹上的物理按键切模式，
-没法调灯效、看温度。这个 App 复刻了 HyperOS 里那个专属设置页的全部功能。
+在没有小米系统界面的手机（如 一加 15 / OxygenOS）上，原厂只能靠背夹上的物理按键切模式，
+既调不了灯效也看不到温度。这个 App 复刻了 HyperOS 里那个专属设置页的全部功能。
 
 > 协议来自对 `com.xiaomi.bluetooth` 的静态逆向 + 真机实测，详见 [docs/protocol.md](docs/protocol.md)。
-> 本项目与小米官方无关，仅个人使用。
+> 本项目与小米官方无关，仅供个人使用。
 
 | 主页 | 灯效 | 权限 |
 |---|---|---|
-| <img src="docs/screenshots/home.png" width="240"> | <img src="docs/screenshots/light.png" width="240"> | <img src="docs/screenshots/permission.png" width="240"> |
+| <img src="docs/screenshots/home.png" width="230"> | <img src="docs/screenshots/light.png" width="230"> | <img src="docs/screenshots/permission.png" width="230"> |
 
 ## 功能
 
-- **无需配对**直接连接；已配对/上次连过的背夹进 App 自动连上
-- **实时温度**：设备约每 2–3 秒主动上报，前台服务在通知栏常驻显示
-- **四档散热模式**：自动 / 静音 / 高效 / 冰封，滑块切换
+- **无需配对**直接连接；已配对 / 上次连过的背夹进 App 自动连上
+- **实时温度**：设备每 2–3 秒上报，前台服务在通知栏常驻显示
+- **四档散热模式**：自动 / 静音 / 高效 / 冰封，滑块切换，风扇转速与模式联动
 - **灯效**：常亮 / 呼吸 / 流光 / 彩虹 / 关闭 × 单色 / 三色 / 彩色，带动画预览
 - **定时关闭**：30 分钟 / 1 小时 / 2 小时，倒计时实时走动
 - 深浅色跟随系统、断线自动重连、未连接时功能置灰
+
+## 设备示意图
+
+主页的设备图由三层 Z 轴叠加而成：
+
+1. 黑色圆形内腔
+2. 灯盘 + 扇叶（一枚，圆心固定在全局中心，半径取整体高度的 40%）
+3. 抠空的机身（外壳 + 中缝横梁）压在最上层，自然遮挡风扇中间
+
+风扇带惯性加减速与高速残影，灯效按 12 扇区绘制并叠加发光。
+
+底图 `app/src/main/assets/cooler_body.webp` **不在仓库中**（版权不属于本项目）：
+
+- 缺少该文件时自动退回自绘矢量外壳，功能不受影响
+- 想用实拍图，自己放一张同名文件进去即可（正面、比例约 897:676）
 
 ## 协议速览
 
@@ -38,14 +53,6 @@ TLV [len][type(2)][value]
 | 模式 `0x40` | 0 自动 · 1 静音 · 2 冰封 · 3 高效 |
 | 灯效 `0x42[0]` | 0 关闭 · 1 彩虹 · 2 呼吸 · 3 流光 · 4 常亮 |
 | 配色 `0x42[1]` | 0 彩色 · 1 单色 · 2 三色 |
-
-## 背夹外观图
-
-主页的设备图使用 `app/src/main/assets/cooler_body.webp` 作为底图，上面叠加两枚可旋转的风扇和灯效。
-
-- 该图片是官方产品图，**未包含在仓库中**（见 `.gitignore`），因为版权不属于本项目。
-- 没有这个文件时，App 会自动退回自绘的矢量外观图，功能不受影响。
-- 想用实拍图，自己放一张同名文件进去即可（建议正面拍摄、背景干净，比例约 897:676）。
 
 ## 构建
 
@@ -67,10 +74,13 @@ echo "sdk.dir=/path/to/Android/Sdk" > local.properties
 
 ```
 app/src/main/java/com/cooler/control/
-├── protocol/   帧编解码、TLV、属性与枚举（纯 Kotlin，有单测）
-├── ble/        GATT 客户端、状态流、自动连接、轮询
-├── service/    前台服务 + 通知栏温度
-├── ui/         主界面 / 灯效(动画预览) / 定时 / 设备信息 / 权限
+├── protocol/  帧编解码、TLV、属性与枚举（纯 Kotlin，有单测）
+├── ble/       GATT 客户端、状态流、自动连接、轮询
+├── service/   前台服务 + 通知栏温度
+├── ui/        主界面 / 灯效 / 定时 / 设备信息 / 权限
+│   ├── FanMotor.kt           风扇与灯盘绘制（运动、残影、发光环）
+│   ├── CoolerIllustration.kt 三层 Z 轴叠加与开口抠图
+│   └── LightEffect.kt        灯效取色（预览与风扇共用）
 ├── CoolerApp.kt
 ├── CoolerViewModel.kt
 └── MainActivity.kt
@@ -86,7 +96,7 @@ app/src/main/java/com/cooler/control/
 
 ## 已知问题 / 待办
 
-- 第 4 档"高效"映射到取值 3，尚未在所有固件上验证
+- “高效”映射到取值 3，尚未在所有固件上验证
 - 设备改名、固件版本读取、OTA 未实现
 - 不同固件版本可能属性表不同，App 会在缺失属性时降级显示
 
