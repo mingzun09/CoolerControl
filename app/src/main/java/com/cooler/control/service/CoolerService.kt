@@ -1,6 +1,7 @@
 package com.cooler.control.service
 
 import android.app.Notification
+import android.graphics.BitmapFactory
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -94,8 +95,11 @@ class CoolerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val largeIcon = BitmapFactory.decodeResource(resources, R.drawable.ic_cooler_product)
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setLargeIcon(largeIcon)
             .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(contentPi)
