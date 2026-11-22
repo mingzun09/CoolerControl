@@ -1,11 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自绘图标：散热背夹（机身 / 风扇 / 中缝横梁） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:scaleX="0.6" android:scaleY="0.6" android:pivotX="54" android:pivotY="54">
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M54,22 L58,40 L72,30 L64,46 L84,48 L64,54 L84,60 L64,62 L72,78 L58,68 L54,86 L50,68 L36,78 L44,62 L24,60 L44,54 L24,48 L44,46 L36,30 L50,40 Z" />
+
+    <!-- 机身外壳：圆角八边形 -->
+    <path
+        android:fillColor="#EDF2FA"
+        android:strokeColor="#B9C7DC"
+        android:strokeWidth="2.5"
+        android:pathData="M38,20 L70,20 Q78,20 82,27 L90,41 Q92,44 92,48 L92,60 Q92,64 90,67 L82,81 Q78,88 70,88 L38,88 Q30,88 26,81 L18,67 Q16,64 16,60 L16,48 Q16,44 18,41 L26,27 Q30,20 38,20 Z" />
+
+    <!-- 风扇暗色圆盘 -->
+    <path
+        android:fillColor="#2C3240"
+        android:pathData="M54,32 A22,22 0 1,1 53.9,32 Z" />
+
+    <!-- 四片扇叶 -->
+    <group android:pivotX="54" android:pivotY="54">
+        <path android:fillColor="#FFFFFF" android:fillAlpha="0.92"
+            android:pathData="M52.5,36 L55.5,36 L55.5,52 L52.5,52 Z" />
+        <path android:fillColor="#FFFFFF" android:fillAlpha="0.92" android:rotation="90" android:pivotX="54" android:pivotY="54"
+            android:pathData="M52.5,36 L55.5,36 L55.5,52 L52.5,52 Z" />
+        <path android:fillColor="#FFFFFF" android:fillAlpha="0.92" android:rotation="180" android:pivotX="54" android:pivotY="54"
+            android:pathData="M52.5,36 L55.5,36 L55.5,52 L52.5,52 Z" />
+        <path android:fillColor="#FFFFFF" android:fillAlpha="0.92" android:rotation="270" android:pivotX="54" android:pivotY="54"
+            android:pathData="M52.5,36 L55.5,36 L55.5,52 L52.5,52 Z" />
     </group>
+
+    <!-- 轴心 -->
+    <path
+        android:fillColor="#8C99B2"
+        android:pathData="M54,50 A4,4 0 1,1 53.9,50 Z" />
+
+    <!-- 中缝横梁 -->
+    <path
+        android:fillColor="#F8FBFF"
+        android:strokeColor="#B9C7DC"
+        android:strokeWidth="2"
+        android:pathData="M17,49 L91,49 L91,59 L17,59 Z" />
 </vector>
